@@ -36,34 +36,44 @@ def calcTileY(rowIndex):
     return (WINDOW_HEIGHT - GAME_SIZE) // 2 + BLOCK_MARGIN + rowIndex * (GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS + BLOCK_MARGIN
     
 
-
 class Frame:
     def __init__(self):
-        pass
+        self.frame = pygame.Rect((WINDOW_WIDTH - GAME_SIZE) // 2,
+                                 (WINDOW_HEIGHT - GAME_SIZE) // 2,
+                                 GAME_SIZE,
+                                 GAME_SIZE)
+        
+        self.frame_inner = pygame.Rect((WINDOW_WIDTH - GAME_SIZE) // 2 + BLOCK_MARGIN,
+                                       (WINDOW_HEIGHT - GAME_SIZE) // 2 + BLOCK_MARGIN,
+                                       GAME_SIZE - 2 * BLOCK_MARGIN,
+                                       GAME_SIZE - 2 * BLOCK_MARGIN)
+        
+        self.frame_cutout = pygame.Rect((WINDOW_WIDTH - GAME_SIZE) // 2 + GAME_SIZE - BLOCK_MARGIN,
+                                        (WINDOW_HEIGHT - GAME_SIZE) // 2 + BLOCK_MARGIN + 2 * (GAME_SIZE // NUM_BLOCKS),
+                                        BLOCK_MARGIN,
+                                        GAME_SIZE // NUM_BLOCKS)
+
 
     def draw(self, surface):
-        pygame.draw.rect(surface, WHITE, pygame.Rect((WINDOW_WIDTH - GAME_SIZE) // 2,
-                                                    (WINDOW_HEIGHT - GAME_SIZE) // 2,
-                                                    GAME_SIZE,
-                                                    GAME_SIZE), 0, CORNER_RADIUS)
-        pygame.draw.rect(surface, BLACK, pygame.Rect((WINDOW_WIDTH - GAME_SIZE) // 2 + BLOCK_MARGIN,
-                                                    (WINDOW_HEIGHT - GAME_SIZE) // 2 + BLOCK_MARGIN,
-                                                    GAME_SIZE - 2 * BLOCK_MARGIN,
-                                                    GAME_SIZE - 2 * BLOCK_MARGIN), 0, CORNER_RADIUS)
-        pygame.draw.rect(surface, BLACK, pygame.Rect((WINDOW_WIDTH - GAME_SIZE) // 2 + GAME_SIZE - BLOCK_MARGIN,
-                                                (WINDOW_HEIGHT - GAME_SIZE) // 2 + BLOCK_MARGIN + 2 * (GAME_SIZE // NUM_BLOCKS),
-                                                BLOCK_MARGIN,
-                                                GAME_SIZE // NUM_BLOCKS))
+        pygame.draw.rect(surface, WHITE, self.frame, 0, CORNER_RADIUS)
+        pygame.draw.rect(surface, BLACK, self.frame_inner, 0, CORNER_RADIUS)
+        pygame.draw.rect(surface, BLACK, self.frame_cutout)
         
 
 class Tile:
-    def __init__(self, color, row, col, rowspan=1, colspan=1):
+    def __init__(self, frame, color, row, col, rowspan=1, colspan=1):
+        self.frame = frame
         self.color = color
         self.row = row
         self.col = col
         self.rowspan = rowspan
         self.colspan = colspan
         self.dragged = False
+        self.dragged_start_x = 0
+        self.dragged_start_y = 0
+        self.dragged_offset_x = 0
+        self.dragged_offset_y = 0
+        self.dragged_x = None
         self.rect = pygame.Rect(calcTileX(self.col),
                                 calcTileY(self.row),
                                 ((GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS - BLOCK_MARGIN) * self.rowspan + (self.rowspan - 1) * BLOCK_MARGIN,
@@ -77,8 +87,47 @@ class Tile:
     def update(self, events):
         for event in events:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                self.dragged == True
-                print(self.posInside(event.pos[0], event.pos[1]))
+                if self.posInside(event.pos[0], event.pos[1]):
+                    self.dragged = True
+                    self.dragged_start_x = event.pos[0]
+                    self.dragged_start_y = event.pos[1]
+                    self.dragged_offset_x = abs(event.pos[0] - self.rect.x)
+                    self.dragged_offset_y = abs(event.pos[1] - self.rect.y)
+
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                indices = calcIndices(self.frame, self.rect.centerx, self.rect.centery)
+                print(self.dragged_start_x)
+                print(event.pos)
+                print(event.pos[0] < self.dragged_start_x)
+                if self.dragged_x:
+                    if indices is None:
+                        indices = self.row, 0 if event.pos[0] < self.dragged_start_x else 5
+                    self.col = indices[1]
+                else:
+                    if indices is None:
+                        indices = 0 if event.pos[1] < self.dragged_start_y else 5, self.col
+                    self.row = indices[0]
+                self.dragged = False
+                self.dragged_x = None
+
+        if self.dragged:
+            mouse_pos = pygame.mouse.get_pos()
+            dist_x = abs(self.dragged_start_x - mouse_pos[0])
+            dist_y = abs(self.dragged_start_y - mouse_pos[1])
+            if self.dragged_x is None and (dist_x > 10 or dist_y > 10):
+                self.dragged_x = dist_x > dist_y
+            elif self.dragged_x is not None:
+                if self.dragged_x: 
+                    self.rect.x = mouse_pos[0] - self.dragged_offset_x
+                    # dragged_offset_x = 0
+                else:
+                    self.rect.y = mouse_pos[1] - self.dragged_offset_y
+        
+        else:
+            self.rect.x = calcTileX(self.col)
+            self.rect.y = calcTileY(self.row)
+
+        # print(self.dragged_x)
 
 
     def posInside(self, x, y):
@@ -86,10 +135,40 @@ class Tile:
                 and self.rect.top < y < self.rect.bottom)
          
 
+def calcIndices(frame: Frame, x, y):
+    if (not frame.frame_inner.left < x < frame.frame_inner.right
+        or not frame.frame_inner.top < y < frame.frame_inner.bottom):
+            return None
+    
+    x -= (WINDOW_WIDTH - frame.frame_inner.width) // 2
+    y -= (WINDOW_HEIGHT - frame.frame_inner.height) // 2
+    row = 0
+    col = 0
+    tile_width = (frame.frame_inner.width - BLOCK_MARGIN) // NUM_BLOCKS
+    tile_height = (frame.frame_inner.height - BLOCK_MARGIN) // NUM_BLOCKS
+
+    if x > BLOCK_MARGIN // 2:
+        x -= BLOCK_MARGIN // 2
+    while x > tile_width + BLOCK_MARGIN // 2:
+        if x - tile_width > 0:
+            x -= tile_width
+            col += 1
+            
+    if y > BLOCK_MARGIN // 2:
+        y -= BLOCK_MARGIN // 2
+    while y > tile_height + BLOCK_MARGIN // 2:
+        if y - tile_height > 0:
+            y -= tile_height
+            row += 1
+
+    return (row, col)
+
+
+
 frame = Frame()
-debugTiles = [Tile(RED, i, j) for i in range(NUM_BLOCKS) for j in range(NUM_BLOCKS)]
+debugTiles = [Tile(frame, RED, i, j) for i in range(NUM_BLOCKS) for j in range(NUM_BLOCKS)]
 tiles = []
-tiles.append(Tile(GREEN, 2, 0))
+tiles.append(Tile(frame, GREEN, 2, 0))
 
 
 ## Game loop
@@ -113,6 +192,10 @@ while running:
 
     if DEBUG: 
         for tile in debugTiles: tile.draw(screen)
+        # for i in range(1, NUM_BLOCKS):
+        #     pygame.draw.line(screen, RED, 
+        #                      (frame.frame_inner.left + BLOCK_MARGIN + i * (frame.frame_inner.width - BLOCK_MARGIN // 2) // NUM_BLOCKS, frame.frame_inner.top),
+        #                      (frame.frame_inner.left + BLOCK_MARGIN + i * (frame.frame_inner.width - BLOCK_MARGIN // 2) // NUM_BLOCKS, frame.frame_inner.bottom))
 
     for tile in tiles: tile.draw(screen)
 
