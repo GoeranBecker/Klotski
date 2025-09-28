@@ -6,10 +6,10 @@ import random
 
 WINDOW_WIDTH = 1080
 WINDOW_HEIGHT = 720
-GAME_SIZE = int(WINDOW_HEIGHT * 0.85)
-BLOCK_MARGIN = int(GAME_SIZE * 0.02)
 NUM_BLOCKS = 6
 CORNER_RADIUS = 2
+GAME_SIZE = int(min(WINDOW_HEIGHT, WINDOW_WIDTH) * 0.85)
+BLOCK_MARGIN = int(GAME_SIZE * 0.02)
 FPS = 30
 DEBUG = True
 
@@ -84,21 +84,18 @@ class Tile:
         pygame.draw.rect(surface, self.color, self.rect, 1, CORNER_RADIUS)
 
 
-    def update(self, events):
+    def update(self, events, other_rects: pygame.Rect):
         for event in events:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if self.posInside(event.pos[0], event.pos[1]):
                     self.dragged = True
                     self.dragged_start_x = event.pos[0]
                     self.dragged_start_y = event.pos[1]
-                    self.dragged_offset_x = abs(event.pos[0] - self.rect.x)
-                    self.dragged_offset_y = abs(event.pos[1] - self.rect.y)
+                    self.dragged_offset_x = event.pos[0] - self.rect.x
+                    self.dragged_offset_y = event.pos[1] - self.rect.y
 
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 indices = calcIndices(self.frame, self.rect.centerx, self.rect.centery)
-                print(self.dragged_start_x)
-                print(event.pos)
-                print(event.pos[0] < self.dragged_start_x)
                 if self.dragged_x:
                     if indices is None:
                         indices = self.row, 0 if event.pos[0] < self.dragged_start_x else 5
@@ -118,10 +115,29 @@ class Tile:
                 self.dragged_x = dist_x > dist_y
             elif self.dragged_x is not None:
                 if self.dragged_x: 
-                    self.rect.x = mouse_pos[0] - self.dragged_offset_x
+                    self.rect.x = mouse_pos[0] - abs(self.dragged_offset_x)
+                    for rect in other_rects:
+                        rect: pygame.Rect
+                        if self.rect.top == rect.top:
+                            if rect.x > self.dragged_start_x:
+                                if self.rect.right > rect.left:
+                                    self.rect.x = rect.left - self.rect.width
+                            elif rect.x < self.dragged_start_x:
+                                if self.rect.left < rect.right:
+                                    self.rect.x = rect.right
+
                     # dragged_offset_x = 0
                 else:
-                    self.rect.y = mouse_pos[1] - self.dragged_offset_y
+                    self.rect.y = mouse_pos[1] - abs(self.dragged_offset_y)
+                    for rect in other_rects:
+                        rect: pygame.Rect
+                        if self.rect.left == rect.left:
+                            if rect.y > self.dragged_start_y:
+                                if self.rect.bottom > rect.top:
+                                    self.rect.y = rect.top - self.rect.width
+                            elif rect.y < self.dragged_start_y:
+                                if self.rect.top < rect.bottom:
+                                    self.rect.y = rect.bottom
         
         else:
             self.rect.x = calcTileX(self.col)
@@ -167,8 +183,15 @@ def calcIndices(frame: Frame, x, y):
 
 frame = Frame()
 debugTiles = [Tile(frame, RED, i, j) for i in range(NUM_BLOCKS) for j in range(NUM_BLOCKS)]
-tiles = []
-tiles.append(Tile(frame, GREEN, 2, 0))
+tiles = [Tile(frame, GREEN, 0, 2),
+         Tile(frame, BLUE, 5, 2),
+         Tile(frame, BLUE, 3, 4),
+         Tile(frame, BLUE, 3, 2),
+         Tile(frame, BLUE, 2, 4),
+         Tile(frame, BLUE, 3, 5),
+         Tile(frame, BLUE, 5, 4),
+         Tile(frame, BLUE, 0, 4),
+         Tile(frame, BLUE, 3, 0),]
 
 
 ## Game loop
@@ -184,7 +207,11 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    for tile in tiles: tile.update(events)
+    rects = [tile.rect for tile in tiles]
+    for tile in tiles: 
+        rects.remove(tile.rect)
+        tile.update(events, rects)
+        rects.append(tile.rect)
 
     screen.fill(BLACK)
 
