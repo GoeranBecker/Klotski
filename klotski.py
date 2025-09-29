@@ -76,12 +76,14 @@ class Tile:
         self.dragged_x = None
         self.rect = pygame.Rect(calcTileX(self.col),
                                 calcTileY(self.row),
-                                ((GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS - BLOCK_MARGIN) * self.rowspan + (self.rowspan - 1) * BLOCK_MARGIN,
-                                ((GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS - BLOCK_MARGIN) * self.colspan + (self.colspan - 1) * BLOCK_MARGIN)
+                                ((GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS - BLOCK_MARGIN) * self.colspan + (self.colspan - 1) * BLOCK_MARGIN,
+                                ((GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS - BLOCK_MARGIN) * self.rowspan + (self.rowspan - 1) * BLOCK_MARGIN)
         
 
     def draw(self, surface):
         pygame.draw.rect(surface, self.color, self.rect, 1, CORNER_RADIUS)
+        # if self.color == GREEN:
+        #     pygame.draw.circle(surface, self.color, (self.rect.left + (self.rect.width // (self.colspan * 2)), self.rect.centery), 2)
 
 
     def update(self, events, other_rects: pygame.Rect):
@@ -95,15 +97,32 @@ class Tile:
                     self.dragged_offset_y = event.pos[1] - self.rect.y
 
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                indices = calcIndices(self.frame, self.rect.centerx, self.rect.centery)
+                indices = None
                 if self.dragged_x:
+                    if event.pos[0] > self.dragged_start_x:
+                        indices = calcIndices(self.frame, self.rect.right - (self.rect.width // (self.colspan * 2)), self.rect.centery)
+                    else:
+                        indices = calcIndices(self.frame, self.rect.left + (self.rect.width // (self.colspan * 2)), self.rect.centery)
+                    
                     if indices is None:
                         indices = self.row, 0 if event.pos[0] < self.dragged_start_x else 5
+                    
                     self.col = indices[1]
+                    if event.pos[0] > self.dragged_start_x:
+                        self.col -= self.colspan - 1
                 else:
+                    if event.pos[1] > self.dragged_start_y:
+                        indices = calcIndices(self.frame, self.rect.centerx, self.rect.bottom - (self.rect.height // (self.rowspan * 2)))
+                    else:
+                        indices = calcIndices(self.frame, self.rect.centerx, self.rect.top + (self.rect.height // (self.rowspan * 2)))
+
                     if indices is None:
                         indices = 0 if event.pos[1] < self.dragged_start_y else 5, self.col
+
                     self.row = indices[0]
+                    if event.pos[1] > self.dragged_start_y:
+                        self.row -= self.rowspan - 1
+
                 self.dragged = False
                 self.dragged_x = None
 
@@ -111,8 +130,10 @@ class Tile:
             mouse_pos = pygame.mouse.get_pos()
             dist_x = abs(self.dragged_start_x - mouse_pos[0])
             dist_y = abs(self.dragged_start_y - mouse_pos[1])
+            
             if self.dragged_x is None and (dist_x > 10 or dist_y > 10):
                 self.dragged_x = dist_x > dist_y
+
             elif self.dragged_x is not None:
                 if self.dragged_x: 
                     self.rect.x = mouse_pos[0] - abs(self.dragged_offset_x)
@@ -125,8 +146,6 @@ class Tile:
                             elif rect.x < self.dragged_start_x:
                                 if self.rect.left < rect.right:
                                     self.rect.x = rect.right
-
-                    # dragged_offset_x = 0
                 else:
                     self.rect.y = mouse_pos[1] - abs(self.dragged_offset_y)
                     for rect in other_rects:
@@ -183,15 +202,16 @@ def calcIndices(frame: Frame, x, y):
 
 frame = Frame()
 debugTiles = [Tile(frame, RED, i, j) for i in range(NUM_BLOCKS) for j in range(NUM_BLOCKS)]
-tiles = [Tile(frame, GREEN, 0, 2),
-         Tile(frame, BLUE, 5, 2),
-         Tile(frame, BLUE, 3, 4),
-         Tile(frame, BLUE, 3, 2),
-         Tile(frame, BLUE, 2, 4),
-         Tile(frame, BLUE, 3, 5),
-         Tile(frame, BLUE, 5, 4),
-         Tile(frame, BLUE, 0, 4),
-         Tile(frame, BLUE, 3, 0),]
+tiles = [Tile(frame, GREEN, 0, 2, rowspan=1, colspan=2)]
+# tiles = [Tile(frame, GREEN, 0, 2, colspan=2),
+#          Tile(frame, BLUE, 5, 2),
+#          Tile(frame, BLUE, 3, 4),
+#          Tile(frame, BLUE, 3, 2),
+#          Tile(frame, BLUE, 2, 4),
+#          Tile(frame, BLUE, 3, 5),
+#          Tile(frame, BLUE, 5, 4),
+#          Tile(frame, BLUE, 0, 4),
+#          Tile(frame, BLUE, 3, 0),]
 
 
 ## Game loop
