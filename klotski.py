@@ -139,7 +139,10 @@ class Tile:
                     self.rect.x = mouse_pos[0] - abs(self.dragged_offset_x)
                     for rect in other_rects:
                         rect: pygame.Rect
-                        if self.rect.top == rect.top:
+                        if (self.rect.top <= rect.top <= self.rect.bottom
+                            or self.rect.top <= rect.bottom <= self.rect.bottom
+                            or rect.top <= self.rect.top <= rect.bottom
+                            or rect.top <= self.rect.bottom <= rect.bottom):
                             if rect.x > self.dragged_start_x:
                                 if self.rect.right > rect.left:
                                     self.rect.x = rect.left - self.rect.width
@@ -150,10 +153,13 @@ class Tile:
                     self.rect.y = mouse_pos[1] - abs(self.dragged_offset_y)
                     for rect in other_rects:
                         rect: pygame.Rect
-                        if self.rect.left == rect.left:
+                        if (self.rect.left <= rect.left <= self.rect.right
+                            or self.rect.left <= rect.right <= self.rect.right
+                            or rect.left <= self.rect.left <= rect.right
+                            or rect.left <= self.rect.right <= rect.right):
                             if rect.y > self.dragged_start_y:
                                 if self.rect.bottom > rect.top:
-                                    self.rect.y = rect.top - self.rect.width
+                                    self.rect.y = rect.top - self.rect.height
                             elif rect.y < self.dragged_start_y:
                                 if self.rect.top < rect.bottom:
                                     self.rect.y = rect.bottom
@@ -202,16 +208,17 @@ def calcIndices(frame: Frame, x, y):
 
 frame = Frame()
 debugTiles = [Tile(frame, RED, i, j) for i in range(NUM_BLOCKS) for j in range(NUM_BLOCKS)]
-tiles = [Tile(frame, GREEN, 0, 2, rowspan=1, colspan=2)]
-# tiles = [Tile(frame, GREEN, 0, 2, colspan=2),
-#          Tile(frame, BLUE, 5, 2),
-#          Tile(frame, BLUE, 3, 4),
-#          Tile(frame, BLUE, 3, 2),
-#          Tile(frame, BLUE, 2, 4),
-#          Tile(frame, BLUE, 3, 5),
-#          Tile(frame, BLUE, 5, 4),
-#          Tile(frame, BLUE, 0, 4),
-#          Tile(frame, BLUE, 3, 0),]
+tiles = [Tile(frame, GREEN, 2, 0, rowspan=2, colspan=2)]
+tiles.append(Tile(frame, BLUE, 2, 5, rowspan=3, colspan=1))
+tiles = [Tile(frame, GREEN, 0, 2, colspan=2),
+         Tile(frame, BLUE, 5, 2),
+         Tile(frame, BLUE, 3, 4),
+         Tile(frame, BLUE, 3, 2),
+         Tile(frame, BLUE, 2, 4),
+         Tile(frame, BLUE, 3, 5),
+         Tile(frame, BLUE, 5, 4),
+         Tile(frame, BLUE, 0, 4),
+         Tile(frame, BLUE, 3, 0),]
 
 
 ## Game loop
