@@ -2,6 +2,7 @@
 
 import pygame
 import random
+import re
 
 
 WINDOW_WIDTH = 1080
@@ -74,13 +75,15 @@ class Tile:
         self.dragged_offset_x = 0
         self.dragged_offset_y = 0
         self.dragged_x = None
-        self.rect = pygame.Rect(calcTileX(self.col),
-                                calcTileY(self.row),
-                                ((GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS - BLOCK_MARGIN) * self.colspan + (self.colspan - 1) * BLOCK_MARGIN,
-                                ((GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS - BLOCK_MARGIN) * self.rowspan + (self.rowspan - 1) * BLOCK_MARGIN)
+        self.rect = None
         
 
     def draw(self, surface):
+        if self.rect is None:
+            self.rect = pygame.Rect(calcTileX(self.col),
+                            calcTileY(self.row),
+                            ((GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS - BLOCK_MARGIN) * self.colspan + (self.colspan - 1) * BLOCK_MARGIN,
+                            ((GAME_SIZE - 3 * BLOCK_MARGIN) // NUM_BLOCKS - BLOCK_MARGIN) * self.rowspan + (self.rowspan - 1) * BLOCK_MARGIN)
         pygame.draw.rect(surface, self.color, self.rect, 1, CORNER_RADIUS)
         # if self.color == GREEN:
         #     pygame.draw.circle(surface, self.color, (self.rect.left + (self.rect.width // (self.colspan * 2)), self.rect.centery), 2)
@@ -205,20 +208,61 @@ def calcIndices(frame: Frame, x, y):
     return (row, col)
 
 
+def parseLayout(frame, layout: str) -> list[Tile]:
+    r_row = r"\|(.*)\|"
+    r_tile = r"(\d*),"
+    tiles: dict[int: Tile] = {}
+    for i_row, row in enumerate(re.findall(r_row, layout)):
+        for i_col, tile in enumerate(re.findall(r_tile, row)):
+            try: tile = int(tile)
+            except: raise TypeError("Non-numeric character for tile")
+            if tile == 0: continue
+
+            if not tile in tiles.keys():
+                tiles[tile] = Tile(frame, BLUE, i_row, i_col)
+            else:
+                ex_tile: Tile = tiles[tile]
+                if i_row == ex_tile.row:
+                    if i_col == ex_tile.col + ex_tile.colspan:
+                        ex_tile.colspan += 1
+                    else:
+                        raise ValueError(f"Invalid Position ({i_row}, {i_col}) for tile {tile}")
+                else:
+                    if i_col == ex_tile.col:
+                        if i_row == ex_tile.row + ex_tile.rowspan:
+                            ex_tile.rowspan += 1
+                        else:
+                            raise ValueError(f"Invalid Position ({i_row}, {i_col}) for tile {tile}")
+                    else:
+                        if i_col == ex_tile.col + ex_tile.colspan:
+                            ex_tile.rowspan += 1
+                            ex_tile.colspan += 1
+                        else:
+                            raise ValueError(f"Invalid Position ({i_row}, {i_col}) for tile {tile}")
+                        
+
+    return tiles.values()
+
 
 frame = Frame()
 debugTiles = [Tile(frame, RED, i, j) for i in range(NUM_BLOCKS) for j in range(NUM_BLOCKS)]
-tiles = [Tile(frame, GREEN, 2, 0, rowspan=2, colspan=2)]
-tiles.append(Tile(frame, BLUE, 2, 5, rowspan=3, colspan=1))
-tiles = [Tile(frame, GREEN, 0, 2, colspan=2),
-         Tile(frame, BLUE, 5, 2),
-         Tile(frame, BLUE, 3, 4),
-         Tile(frame, BLUE, 3, 2),
-         Tile(frame, BLUE, 2, 4),
-         Tile(frame, BLUE, 3, 5),
-         Tile(frame, BLUE, 5, 4),
-         Tile(frame, BLUE, 0, 4),
-         Tile(frame, BLUE, 3, 0),]
+tiles = parseLayout(frame,
+        """ |0,0,0,0,0,|
+            |0,1,1,1,0,|
+            |0,1,1,1,0,|
+            |0,0,0,0,0,|
+            |0,0,0,0,0,|""")
+# tiles = [Tile(frame, GREEN, 2, 0, rowspan=2, colspan=2)]
+# tiles.append(Tile(frame, BLUE, 2, 5, rowspan=3, colspan=1))
+# tiles = [Tile(frame, GREEN, 0, 2, colspan=2),
+#          Tile(frame, BLUE, 5, 2),
+#          Tile(frame, BLUE, 3, 4),
+#          Tile(frame, BLUE, 3, 2),
+#          Tile(frame, BLUE, 2, 4),
+#          Tile(frame, BLUE, 3, 5),
+#          Tile(frame, BLUE, 5, 4),
+#          Tile(frame, BLUE, 0, 4),
+#          Tile(frame, BLUE, 3, 0),]
 
 
 ## Game loop
@@ -236,6 +280,7 @@ while running:
 
     rects = [tile.rect for tile in tiles]
     for tile in tiles: 
+        if tile.rect is None: continue
         rects.remove(tile.rect)
         tile.update(events, rects)
         rects.append(tile.rect)
