@@ -23,7 +23,6 @@ BLUE = (0, 0, 255)
 
 ## initialize pygame and create window
 pygame.init()
-pygame.mixer.init()  ## For sound
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption("Klotski")
 clock = pygame.time.Clock()     ## For syncing the FPS
